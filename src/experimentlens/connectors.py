@@ -35,8 +35,10 @@ class CsvConnector:
                 columns = reader.fieldnames
                 if not columns:
                     raise DataValidationError(f"{source}: CSV is empty or has no header")
-                if len(columns) != len(set(columns)) or any(not c or not c.strip() for c in columns):
+                columns = [column.strip() for column in columns]
+                if len(columns) != len(set(columns)) or any(not column for column in columns):
                     raise DataValidationError(f"{source}: duplicate or blank CSV column")
+                reader.fieldnames = columns
                 missing = set(self.required_columns) - set(columns)
                 if missing:
                     raise DataValidationError(f"{source}: missing columns: {', '.join(sorted(missing))}")

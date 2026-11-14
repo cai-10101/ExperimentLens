@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from .errors import ConnectorExecutionError, ExperimentLensError, InputError
+from .errors import ConnectorExecutionError, DataValidationError, ExperimentLensError, InputError
 from .model import ExperimentRecord
 from .registry import ConnectorRegistry
 
@@ -24,6 +24,7 @@ def load_experiments(paths: list[str], *, disabled_connectors: set[str] | None =
     registry = ConnectorRegistry(disabled_connectors)
     registry.discover()
     records: list[ExperimentRecord] = []
+    seen_ids: dict[str, str] = {}
     extensions = registry.supported_extensions | PROJECT_EXTENSIONS
     for raw_path in paths:
         path = Path(raw_path)
@@ -45,6 +46,14 @@ def load_experiments(paths: list[str], *, disabled_connectors: set[str] | None =
                     not isinstance(item, ExperimentRecord) for item in loaded
                 ):
                     raise ConnectorExecutionError(f"{connector.name}: load must return a non-empty list of ExperimentRecord")
+                for record in loaded:
+                    previous_source = seen_ids.get(record.experiment_id)
+                    if previous_source is not None:
+                        raise DataValidationError(
+                            f"duplicate experiment_id {record.experiment_id!r} "
+                            f"in {previous_source} and {file}"
+                        )
+                    seen_ids[record.experiment_id] = str(file)
                 records.extend(loaded)
             except ExperimentLensError:
                 raise

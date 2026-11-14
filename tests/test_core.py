@@ -58,6 +58,16 @@ class CoreTests(unittest.TestCase):
         record = ExperimentRecord("e", "m", "d", "t", "s", {"count": 2}, {}, "x")
         self.assertEqual(record.metrics, {"count": 2.0})
 
+    def test_record_strips_identifiers_and_metric_names(self):
+        record = ExperimentRecord(" exp_001 ", " Model_A ", " Dataset_A ",
+                                  " classification ", " test ", {" f1 ": 0.8}, {}, " data.csv ")
+        self.assertEqual((record.experiment_id, record.model, record.dataset,
+                          record.task, record.split, record.source),
+                         ("exp_001", "Model_A", "Dataset_A", "classification", "test", "data.csv"))
+        self.assertEqual(record.metrics, {"f1": 0.8})
+        with self.assertRaisesRegex(DataValidationError, "duplicate metric name"):
+            ExperimentRecord("e", "m", "d", "t", "s", {"f1": 0.8, " f1 ": 0.9}, {}, "x")
+
     def test_csv_file_and_recursive_directory(self):
         first = self.write("a.csv", HEADER + ROW)
         self.write("nested/b.csv", HEADER + ROW.replace("exp_001", "exp_002"))
@@ -110,6 +120,33 @@ class CoreTests(unittest.TestCase):
                 with self.assertRaises(DataValidationError):
                     load_experiments([str(invalid)])
 
+    def test_csv_header_normalization_and_collision(self):
+        valid = self.write("headers.csv", HEADER.replace("dataset,", " dataset ,") + ROW)
+        self.assertEqual(load_experiments([str(valid)])[0].dataset, "Dataset_A")
+        duplicate = self.write("duplicate_headers.csv", HEADER.replace(
+            "metric.f1,config", "metric.f1, metric.f1 ,config") +
+            ROW.replace("0.77,", "0.77,0.86,"))
+        with self.assertRaisesRegex(DataValidationError, "duplicate or blank CSV column"):
+            load_experiments([str(duplicate)])
+        duplicate_metric = self.write("duplicate_metrics.csv", HEADER.replace(
+            "metric.f1,config", "metric.f1,metric. f1,config") +
+            ROW.replace("0.77,", "0.77,0.86,"))
+        with self.assertRaisesRegex(DataValidationError, "duplicate metric name"):
+            load_experiments([str(duplicate_metric)])
+
+    def test_duplicate_experiment_ids_within_and_across_files(self):
+        first = self.write("first.csv", HEADER + ROW + ROW.replace("exp_001", " exp_001 "))
+        with self.assertRaisesRegex(DataValidationError, "duplicate experiment_id 'exp_001'") as same_file:
+            load_experiments([str(first)])
+        self.assertIn(str(first), str(same_file.exception))
+
+        first.write_text(HEADER + ROW, encoding="utf-8")
+        second = self.write("second.csv", HEADER + ROW.replace("exp_001", " exp_001 "))
+        with self.assertRaisesRegex(DataValidationError, "duplicate experiment_id 'exp_001'") as two_files:
+            load_experiments([str(first), str(second)])
+        self.assertIn(str(first), str(two_files.exception))
+        self.assertIn(str(second), str(two_files.exception))
+
     def test_invalid_utf8(self):
         path = self.root / "bad.csv"
         path.write_bytes(b"\xff\xfe")
@@ -160,6 +197,31 @@ class CoreTests(unittest.TestCase):
             load_experiments([str(json_path)])
         with self.assertRaisesRegex(ConnectorRegistrationError, "package unavailable"):
             load_experiments([str(self.root)])
+
+    @patch("experimentlens.registry.entry_points")
+    def test_disabled_connector_is_excluded_and_not_blamed_for_other_failure(self, discover):
+        broken = FakeEntryPoint(FakeJsonConnector)
+        broken.name = "unrelated"
+        broken.load = lambda: (_ for _ in ()).throw(ImportError("unrelated failure"))
+        discover.return_value = [broken]
+        registry = ConnectorRegistry({"csv"})
+        registry.discover()
+        self.assertNotIn(".csv", registry.supported_extensions)
+        self.assertNotIn("csv", registry.connectors)
+        with self.assertRaises(ConnectorNotFoundError):
+            registry.for_suffix(".csv")
+
+        registry = ConnectorRegistry({"json"})
+        registry.discover()
+        with self.assertRaises(ConnectorNotFoundError):
+            registry.for_suffix(".json")
+
+        discover.return_value = [FakeEntryPoint(FakeJsonConnector)]
+        registry = ConnectorRegistry({"fake_json"})
+        registry.discover()
+        self.assertEqual(registry.supported_extensions, frozenset({".csv"}))
+        with self.assertRaises(ConnectorNotFoundError):
+            registry.for_suffix(".json")
 
 
 if __name__ == "__main__":

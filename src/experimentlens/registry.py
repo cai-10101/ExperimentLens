@@ -45,9 +45,17 @@ class ConnectorRegistry:
                 self.discovery_errors[ep.name] = str(exc)
 
     def for_suffix(self, suffix: str) -> ExperimentConnector:
+        suffix = suffix.lower()
         for connector in self._connectors.values():
-            if connector.name not in self.disabled and suffix.lower() in connector.extensions:
+            if suffix in connector.extensions:
+                if connector.name in self.disabled:
+                    raise ConnectorNotFoundError(f"no enabled connector for {suffix}")
                 return connector
+        # A disabled entry point has not been loaded, so its extensions are
+        # unknown. The conventional name/suffix match still gives a precise
+        # error without blaming an unrelated failed plugin.
+        if suffix.removeprefix(".") in self.disabled:
+            raise ConnectorNotFoundError(f"no enabled connector for {suffix}")
         if self.discovery_errors:
             problems = "; ".join(f"{name}: {error}" for name, error in self.discovery_errors.items())
             raise ConnectorRegistrationError(f"no connector for {suffix}; plugin discovery failed: {problems}")
@@ -60,4 +68,4 @@ class ConnectorRegistry:
     @property
     def supported_extensions(self) -> frozenset[str]:
         return frozenset(ext for connector in self._connectors.values()
-                         for ext in connector.extensions)
+                         if connector.name not in self.disabled for ext in connector.extensions)

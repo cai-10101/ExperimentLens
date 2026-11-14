@@ -6,7 +6,7 @@
 
 ## 公共数据模型
 
-从 `experimentlens` 导入 `ExperimentRecord`。字段为 `experiment_id: str`、`model: str`、`dataset: str`、`task: str`、`split: str`、`metrics: dict[str, float]`、`config: dict[str, Any]`、`source: str`。前五项及 `source` 必须是非空字符串；`metrics` 至少有一个名称非空的有限数值指标；`config` 是对象，缺省为空对象。连接器创建记录时负责填写实际来源路径。指标是否同名、含义一致及优化方向由 C 确定。
+从 `experimentlens` 导入 `ExperimentRecord`。字段为 `experiment_id: str`、`model: str`、`dataset: str`、`task: str`、`split: str`、`metrics: dict[str, float]`、`config: dict[str, Any]`、`source: str`。前五项及 `source` 必须是非空字符串，保存前会去除首尾空白；`metrics` 至少有一个名称非空的有限数值指标，指标名同样去除首尾空白，归一化后重名会报错；`config` 是对象，缺省为空对象。连接器创建记录时负责填写实际来源路径。跨实验的指标含义是否一致及优化方向由 C 确定。
 
 ## Connector 契约（交给 B）
 
@@ -23,10 +23,10 @@ json = "b_package.connector:JsonConnector"
 
 ## 导入接口（交给 C）
 
-`load_experiments(paths: list[str], *, disabled_connectors: set[str] | None = None) -> list[ExperimentRecord]`。支持文件和递归目录；返回扁平记录列表。`disabled_connectors={"json"}` 可禁用 JSON 插件，独立 CSV 导入仍可运行。若目录包含 JSON，但 JSON 连接器缺失、禁用或损坏，整个导入会报错，以免调用方误以为拿到了完整目录结果；此时可单独指定 CSV 文件或 CSV 专用目录。核心不调用 C 的分析函数，也不输出报告。
+`load_experiments(paths: list[str], *, disabled_connectors: set[str] | None = None) -> list[ExperimentRecord]`。支持文件和递归目录；返回扁平记录列表。同一次导入中 `experiment_id` 必须唯一，重复时会指出 ID 与冲突的来源文件。`disabled_connectors={"json"}` 可禁用 JSON 插件，独立 CSV 导入仍可运行。若目录包含 JSON，但 JSON 连接器缺失、禁用或损坏，整个导入会报错，以免调用方误以为拿到了完整目录结果；此时可单独指定 CSV 文件或 CSV 专用目录。核心不调用 C 的分析函数，也不输出报告。
 
 公共异常根类是 `ExperimentLensError`。`InputError` 表示路径或文件读取失败；`DataValidationError` 表示内容无效；`ConnectorNotFoundError` 表示文件格式没有可用连接器；`ConnectorRegistrationError` 表示插件契约或发现失败；`ConnectorExecutionError` 表示插件运行异常。调用方可以捕获根类给用户友好反馈，也可以按子类区分处理。任何文件失败都会中止整次导入，避免得到不完整结果。
 
 ## 待联调确认
 
-B 应按本契约提交独立 JSON 包及其测试；C 应确认是否还需要额外元数据、指标单位或优化方向。若需要扩展字段，应先共同修订公共契约，再开展联调。最终 JSON 安装、报告闭环与交叉 Review 需要三人协作验收。
+B 应按本契约提交独立 JSON 包及其测试；C 已确认当前字段满足可比性检查与报告导出，指标优化方向由 C 的分析器处理。若后续需要扩展字段，应先共同修订公共契约，再开展联调。最终 JSON 安装、报告闭环与交叉 Review 需要三人协作验收。
