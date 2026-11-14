@@ -1,0 +1,9 @@
+{
+  "run_id": "exp_003",
+  "model_info": {"name": "Model_C"},
+  "dataset": "Dataset_A",
+  "task": "classification",
+  "split": "test",
+  "results": {"precision": 0.90, "recall": 0.82, "f1_score": 0.86},
+  "config": {"seed": 42}
+}
