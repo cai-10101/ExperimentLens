@@ -1,0 +1,2 @@
+experiment_id,model,dataset,task,split,metric.precision,metric.recall,metric.f1,config
+exp_001,Model_A,Dataset_A,classification,test,0.85,0.70,0.77,"{""seed"": 42}"
