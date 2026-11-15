@@ -4,7 +4,7 @@
 
 ## 依赖与当前联调基线
 
-需要 Python 3.10+，依赖 `experimentlens>=0.1,<0.2`。当前 `main` 尚无核心实现，联调使用 A 的 PR #1 提交 `4b7b5b8c25e7f1faab30b0d10c9e7f4b6c4f7a35`。CI 固定该提交以便复现插件契约测试。B 分支从 `main` 创建，只提交插件及其 CI。PR #1 合并后才具备完整主线运行条件，后续公共契约变化需重新联调。
+需要 Python 3.10+，依赖 `experimentlens>=0.1,<0.2`。联调使用 A 的接口基线提交 `4b7b5b8c25e7f1faab30b0d10c9e7f4b6c4f7a35`，CI 固定该提交以便复现插件契约测试。此次文档核对时，本地 `origin/main` 已包含 A 的 PR #1 合并提交 `b5e1cef`。B 分支从初始主线创建，核心依赖通过独立安装提供，后续公共契约变化需重新联调。模块职责、公共接口与测试覆盖见 [JSON 连接器设计与联调说明](../../docs/JSON_CONNECTOR.md)。
 
 ## JSON 格式与映射
 
@@ -41,9 +41,9 @@
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install build
-# PR #1 合并前，从其固定提交安装核心依赖
+# 安装与插件 CI 一致的固定核心依赖
 python -m pip install "experimentlens @ git+https://github.com/cai-10101/ExperimentLens.git@4b7b5b8c25e7f1faab30b0d10c9e7f4b6c4f7a35"
-# PR #1 合并后，也可在含核心实现的主线中执行 python -m pip install .
+# 在含核心实现的主线 checkout 中，也可执行 python -m pip install .
 python plugins/json_connector/tests/installation_smoke.py absent
 python -m build plugins/json_connector
 python -m pip install plugins/json_connector/dist/experimentlens_json-0.1.0-py3-none-any.whl
