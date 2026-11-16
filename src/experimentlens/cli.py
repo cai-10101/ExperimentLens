@@ -6,7 +6,7 @@ import sys
 from typing import Sequence
 
 from .analyzer import analyze_experiments
-from .errors import ConnectorError, DataValidationError, ExperimentLensError
+from .errors import ConnectorError, DataValidationError, ExperimentLensError, InputError
 from .importer import load_experiments
 from .reporter import export_summary_csv, generate_html_report, generate_report
 
@@ -27,6 +27,56 @@ def _parse_directions(items: list[str] | None) -> dict[str, str]:
             )
         directions[metric] = direction
     return directions
+
+
+def _validate_output_paths(
+    imported_sources: set[str],
+    output_markdown: str | None,
+    output_csv: str | None,
+    output_html: str | None,
+) -> None:
+    """Ensure output destination paths do not overwrite any input data files or collide with each other."""
+    resolved_inputs: set[Path] = set()
+    for src in imported_sources:
+        try:
+            p = Path(src)
+            if p.exists():
+                resolved_inputs.add(p.resolve())
+        except OSError:
+            pass
+
+    out_map: dict[str, Path] = {}
+    if output_markdown:
+        out_map["--output"] = Path(output_markdown)
+    if output_csv:
+        out_map["--csv-output"] = Path(output_csv)
+    if output_html:
+        out_map["--html-output"] = Path(output_html)
+
+    # Check for collision with imported input files
+    for opt_name, out_p in out_map.items():
+        try:
+            resolved_out = out_p.resolve()
+        except OSError:
+            resolved_out = out_p.absolute()
+        if resolved_out in resolved_inputs:
+            raise InputError(
+                f"output path {str(out_p)!r} specified by {opt_name} conflicts with input data file"
+            )
+
+    # Check for collision among output paths
+    seen_outputs: dict[Path, str] = {}
+    for opt_name, out_p in out_map.items():
+        try:
+            resolved_out = out_p.resolve()
+        except OSError:
+            resolved_out = out_p.absolute()
+        if resolved_out in seen_outputs:
+            first_opt = seen_outputs[resolved_out]
+            raise InputError(
+                f"output path {str(out_p)!r} specified by {opt_name} conflicts with {first_opt}"
+            )
+        seen_outputs[resolved_out] = opt_name
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -88,7 +138,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--strict-comparability",
         action="store_true",
-        help="Fail with a validation error if imported experiments are not comparable.",
+        help="Fail with a validation error if imported experiments are not comparable or have missing metrics.",
     )
     parser.add_argument(
         "--title",
@@ -105,6 +155,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         disabled = {name.strip() for name in args.disable_connector if name.strip()} or None
         directions = _parse_directions(args.direction)
         records = load_experiments(args.paths, disabled_connectors=disabled)
+
+        # Guard against output paths overwriting input files or each other
+        imported_sources = {r.source for r in records if r.source}
+        _validate_output_paths(imported_sources, args.output, args.csv_output, args.html_output)
+
         analysis = analyze_experiments(
             records,
             sort_by=args.sort_by,

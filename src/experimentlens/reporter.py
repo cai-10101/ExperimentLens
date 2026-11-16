@@ -111,7 +111,7 @@ def generate_report(
 
 
 def export_summary_csv(analysis: AnalysisResult, output_path: str | Path) -> Path:
-    """Export unified experiment records into a flat CSV summary file."""
+    """Export unified experiment records into a flat CSV summary file, preserving full numeric precision."""
     target = Path(output_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     metrics_cols = list(analysis.comparability.all_metrics)
@@ -135,7 +135,8 @@ def export_summary_csv(analysis: AnalysisResult, output_path: str | Path) -> Pat
                 "source": rec.source.strip(),
             }
             for m in metrics_cols:
-                row[f"metric.{m}"] = _format_num(normalized_map[m]) if m in normalized_map else ""
+                # Use str(val) or repr(val) to preserve round-trip floating point precision
+                row[f"metric.{m}"] = str(normalized_map[m]) if m in normalized_map else ""
             writer.writerow(row)
     return target
 

@@ -8,6 +8,7 @@ from unittest.mock import patch
 from experimentlens import (
     DataValidationError,
     ExperimentRecord,
+    InputError,
     analyze_experiments,
     export_summary_csv,
     generate_html_report,
@@ -133,6 +134,30 @@ class AnalyzerAndCliTests(unittest.TestCase):
         self.assertAlmostEqual(loss_sum.delta, 0.27)
         self.assertEqual([r.experiment_id for r in result.records], ["exp_2", "exp_1"])
 
+    def test_tiny_non_zero_spread_not_misjudged_as_no_difference(self) -> None:
+        records = [
+            ExperimentRecord("exp_1", "M1", "D1", "cls", "test", {"loss": 0.8}, {}, "a.csv"),
+            ExperimentRecord("exp_2", "M2", "D1", "cls", "test", {"loss": 0.80000000001}, {}, "b.csv"),
+        ]
+        result = analyze_experiments(records, sort_by="loss")
+        self.assertTrue(result.comparability.is_comparable)
+        summary = result.metric_summaries["loss"]
+        self.assertGreater(summary.spread, 0.0)
+        self.assertGreater(summary.delta, 0.0)
+        self.assertEqual(summary.best_experiment_id, "exp_1")
+        self.assertEqual(summary.worst_experiment_id, "exp_2")
+        # Conclusion must NOT state "无差异"
+        self.assertFalse(any("无差异" in c for c in result.conclusions))
+        self.assertTrue(any("exp_1" in c and "低" in c for c in result.conclusions))
+
+        # Test true equality produces "无差异"
+        equal_records = [
+            ExperimentRecord("exp_1", "M1", "D1", "cls", "test", {"acc": 0.95}, {}, "a.csv"),
+            ExperimentRecord("exp_2", "M2", "D1", "cls", "test", {"acc": 0.95}, {}, "b.csv"),
+        ]
+        eq_result = analyze_experiments(equal_records)
+        self.assertTrue(any("无差异" in c for c in eq_result.conclusions))
+
     def test_non_comparable_experiments_and_strict_mode(self) -> None:
         records = [
             ExperimentRecord("exp_1", "M1", "Dataset_A", "classification", "test", {"f1": 0.80}, {}, "a.csv"),
@@ -152,16 +177,22 @@ class AnalyzerAndCliTests(unittest.TestCase):
         self.assertTrue(filtered_result.comparability.is_comparable)
         self.assertEqual(len(filtered_result.records), 1)
 
-    def test_partial_metrics_and_validation_errors(self) -> None:
+    def test_partial_metrics_and_strict_comparability(self) -> None:
         records = [
             ExperimentRecord("exp_1", "M1", "D1", "classification", "test", {"f1": 0.80, "auc": 0.91}, {}, "a.csv"),
             ExperimentRecord("exp_2", "M2", "D1", "classification", "test", {"f1": 0.85}, {}, "b.csv"),
         ]
+        # In default mode, common metrics can still be analyzed while missing metrics trigger warnings
         result = analyze_experiments(records)
         self.assertTrue(result.comparability.is_comparable)
         self.assertEqual(result.comparability.common_metrics, ("f1",))
         self.assertEqual(result.comparability.all_metrics, ("f1", "auc"))
         self.assertTrue(any("auc" in w and "exp_2" in w for w in result.comparability.warnings))
+        self.assertIn("f1", result.metric_summaries)
+
+        # In strict mode, missing metrics must be rejected
+        with self.assertRaisesRegex(DataValidationError, "not comparable.*missing in: exp_2"):
+            analyze_experiments(records, strict_comparability=True)
 
         with self.assertRaisesRegex(DataValidationError, "not present in all experiments"):
             analyze_experiments(records, sort_by="auc")
@@ -193,6 +224,22 @@ class AnalyzerAndCliTests(unittest.TestCase):
         html_out = generate_html_report(result)
         self.assertIn("<!DOCTYPE html>", html_out)
         self.assertIn("指标图表：f1", html_out)
+
+    def test_csv_export_preserves_high_precision(self) -> None:
+        records = [
+            ExperimentRecord("exp_1", "M1", "D1", "cls", "test", {"loss": 0.123456}, {}, "a.csv"),
+            ExperimentRecord("exp_2", "M2", "D1", "cls", "test", {"loss": 0.123457}, {}, "b.csv"),
+        ]
+        result = analyze_experiments(records)
+        csv_file = self.root / "precision.csv"
+        export_summary_csv(result, csv_file)
+
+        # Reload exported CSV and verify that precision differences are preserved
+        reloaded = load_experiments([str(csv_file)])
+        self.assertEqual(len(reloaded), 2)
+        self.assertEqual(reloaded[0].metrics["loss"], 0.123456)
+        self.assertEqual(reloaded[1].metrics["loss"], 0.123457)
+        self.assertNotEqual(reloaded[0].metrics["loss"], reloaded[1].metrics["loss"])
 
     @patch("experimentlens.registry.entry_points")
     def test_cli_end_to_end_with_csv_and_json_plugin(self, mock_eps) -> None:
@@ -244,6 +291,30 @@ class AnalyzerAndCliTests(unittest.TestCase):
             ])
         self.assertEqual(csv_only_code, 0)
         self.assertIn("exp_002", stdout_buf.getvalue())
+
+    def test_cli_prevents_overwriting_input_file(self) -> None:
+        input_csv = self.write(
+            "data.csv",
+            'experiment_id,model,dataset,task,split,metric.f1\n'
+            'exp_001,Model_A,Dataset_A,classification,test,0.77\n',
+        )
+        original_content = input_csv.read_text(encoding="utf-8")
+
+        stderr_buf = io.StringIO()
+        with redirect_stderr(stderr_buf):
+            code = cli_main([str(input_csv), "-o", str(input_csv)])
+        self.assertEqual(code, 2)
+        self.assertIn("InputError", stderr_buf.getvalue())
+        self.assertIn("conflicts with input data file", stderr_buf.getvalue())
+        # Verify that original input file is completely untouched
+        self.assertEqual(input_csv.read_text(encoding="utf-8"), original_content)
+
+        # Also verify collision between two output flags
+        out_csv = self.root / "output.csv"
+        with redirect_stderr(stderr_buf):
+            col_code = cli_main([str(input_csv), "-o", str(out_csv), "--csv-output", str(out_csv)])
+        self.assertEqual(col_code, 2)
+        self.assertIn("conflicts with", stderr_buf.getvalue())
 
     def test_cli_error_exit_codes(self) -> None:
         stderr_buf = io.StringIO()

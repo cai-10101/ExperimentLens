@@ -1,6 +1,7 @@
 """Experiment comparability checking, metric aggregation, and ranking analysis."""
 
 from dataclasses import dataclass, field
+import math
 from typing import Any
 
 from .errors import DataValidationError
@@ -79,7 +80,14 @@ def resolve_metric_direction(
 
 
 def _format_num(value: float) -> str:
-    formatted = f"{value:.4f}".rstrip("0").rstrip(".")
+    """Format floating point numbers for text report display without loss of significant magnitude."""
+    if value == 0.0:
+        return "0.00"
+    abs_val = abs(value)
+    if abs_val < 0.0001:
+        # Use scientific notation for extremely small numbers
+        return f"{value:.4e}"
+    formatted = f"{value:.6f}".rstrip("0").rstrip(".")
     if "." not in formatted:
         return f"{value:.2f}"
     parts = formatted.split(".")
@@ -157,6 +165,7 @@ def analyze_experiments(
     if not common_metrics_list:
         reasons.append("no common metrics shared across all experiments")
 
+    missing_metrics_reasons: list[str] = []
     for m_name in all_metrics_list:
         missing = [
             r.experiment_id.strip()
@@ -164,7 +173,9 @@ def analyze_experiments(
             if m_name not in {k.strip() for k in r.metrics}
         ]
         if missing:
-            warnings.append(f"metric {m_name!r} is missing in: {', '.join(missing)}")
+            warning_msg = f"metric {m_name!r} is missing in: {', '.join(missing)}"
+            warnings.append(warning_msg)
+            missing_metrics_reasons.append(warning_msg)
 
     if sort_by is not None:
         clean_sort = sort_by.strip()
@@ -178,8 +189,11 @@ def analyze_experiments(
         clean_sort = None
 
     is_comparable = len(reasons) == 0
-    if strict_comparability and not is_comparable:
-        raise DataValidationError(f"experiments are not comparable: {'; '.join(reasons)}")
+    if strict_comparability:
+        # In strict comparability mode, any mismatch or missing metric fails validation
+        strict_failures = list(reasons) + missing_metrics_reasons
+        if strict_failures:
+            raise DataValidationError(f"experiments are not comparable: {'; '.join(strict_failures)}")
 
     comparability = ComparabilityReport(
         is_comparable=is_comparable,
@@ -224,7 +238,7 @@ def analyze_experiments(
             )
             min_val, min_id = asc_pairs[0]
             max_val, max_id = desc_pairs[0]
-            spread = round(max_val - min_val, 10)
+            spread = max_val - min_val
 
             if direction == "higher":
                 best_val, best_id = max_val, max_id
@@ -235,7 +249,7 @@ def analyze_experiments(
                 worst_val, worst_id = max_val, max_id
                 ranking = tuple(exp_id for _, exp_id in asc_pairs)
 
-            delta = round(abs(best_val - worst_val), 10)
+            delta = abs(best_val - worst_val)
             summaries[m_name] = MetricSummary(
                 metric=m_name,
                 direction=direction,
@@ -259,7 +273,8 @@ def analyze_experiments(
                     f"数据集={comparability.dataset}, 划分={comparability.split}）的 "
                     f"{m_name} 为 {_format_num(summary.best_value)}。"
                 )
-            elif summary.spread == 0:
+            elif summary.max_value == summary.min_value:
+                # Exact equality between min and max
                 conclusions.append(
                     f"在相同任务（{comparability.task}）、数据集（{comparability.dataset}）、"
                     f"评价划分（{comparability.split}）下，各实验的 {m_name} 均为 {_format_num(summary.best_value)}（无差异）。"
