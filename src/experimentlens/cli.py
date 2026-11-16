@@ -1,6 +1,7 @@
 """Command-line interface for ExperimentLens."""
 
 import argparse
+import os
 from pathlib import Path
 import sys
 from typing import Sequence
@@ -29,6 +30,30 @@ def _parse_directions(items: list[str] | None) -> dict[str, str]:
     return directions
 
 
+def _is_same_file_or_resolved(p1: Path, p2: Path) -> bool:
+    """Check if two paths point to the same physical file (resolving symlinks and hardlinks)."""
+    try:
+        resolved_1 = p1.resolve()
+    except OSError:
+        resolved_1 = p1.absolute()
+    try:
+        resolved_2 = p2.resolve()
+    except OSError:
+        resolved_2 = p2.absolute()
+
+    if resolved_1 == resolved_2:
+        return True
+
+    # Use os.path.samefile to detect hard links on existing files
+    try:
+        if p1.exists() and p2.exists() and os.path.samefile(p1, p2):
+            return True
+    except (OSError, ValueError):
+        pass
+
+    return False
+
+
 def _validate_output_paths(
     imported_sources: set[str],
     output_markdown: str | None,
@@ -36,12 +61,12 @@ def _validate_output_paths(
     output_html: str | None,
 ) -> None:
     """Ensure output destination paths do not overwrite any input data files or collide with each other."""
-    resolved_inputs: set[Path] = set()
+    input_paths: list[Path] = []
     for src in imported_sources:
         try:
             p = Path(src)
             if p.exists():
-                resolved_inputs.add(p.resolve())
+                input_paths.append(p)
         except OSError:
             pass
 
@@ -53,30 +78,23 @@ def _validate_output_paths(
     if output_html:
         out_map["--html-output"] = Path(output_html)
 
-    # Check for collision with imported input files
+    # Check for collision with imported input files (handles path equality, symlinks, and hard links)
     for opt_name, out_p in out_map.items():
-        try:
-            resolved_out = out_p.resolve()
-        except OSError:
-            resolved_out = out_p.absolute()
-        if resolved_out in resolved_inputs:
-            raise InputError(
-                f"output path {str(out_p)!r} specified by {opt_name} conflicts with input data file"
-            )
+        for in_p in input_paths:
+            if _is_same_file_or_resolved(out_p, in_p):
+                raise InputError(
+                    f"output path {str(out_p)!r} specified by {opt_name} conflicts with input data file {str(in_p)!r}"
+                )
 
     # Check for collision among output paths
-    seen_outputs: dict[Path, str] = {}
+    checked_outputs: list[tuple[str, Path]] = []
     for opt_name, out_p in out_map.items():
-        try:
-            resolved_out = out_p.resolve()
-        except OSError:
-            resolved_out = out_p.absolute()
-        if resolved_out in seen_outputs:
-            first_opt = seen_outputs[resolved_out]
-            raise InputError(
-                f"output path {str(out_p)!r} specified by {opt_name} conflicts with {first_opt}"
-            )
-        seen_outputs[resolved_out] = opt_name
+        for prev_opt, prev_p in checked_outputs:
+            if _is_same_file_or_resolved(out_p, prev_p):
+                raise InputError(
+                    f"output path {str(out_p)!r} specified by {opt_name} conflicts with {prev_opt}"
+                )
+        checked_outputs.append((opt_name, out_p))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -156,7 +174,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         directions = _parse_directions(args.direction)
         records = load_experiments(args.paths, disabled_connectors=disabled)
 
-        # Guard against output paths overwriting input files or each other
+        # Guard against output paths overwriting input files or each other (including hardlinks/symlinks)
         imported_sources = {r.source for r in records if r.source}
         _validate_output_paths(imported_sources, args.output, args.csv_output, args.html_output)
 

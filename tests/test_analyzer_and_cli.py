@@ -1,4 +1,5 @@
 import io
+import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -315,6 +316,18 @@ class AnalyzerAndCliTests(unittest.TestCase):
             col_code = cli_main([str(input_csv), "-o", str(out_csv), "--csv-output", str(out_csv)])
         self.assertEqual(col_code, 2)
         self.assertIn("conflicts with", stderr_buf.getvalue())
+
+        # Test hardlink collision detection
+        hardlink_csv = self.root / "hardlink_data.csv"
+        try:
+            os.link(input_csv, hardlink_csv)
+            with redirect_stderr(stderr_buf):
+                hl_code = cli_main([str(input_csv), "-o", str(hardlink_csv)])
+            self.assertEqual(hl_code, 2)
+            self.assertIn("conflicts with input data file", stderr_buf.getvalue())
+            self.assertEqual(input_csv.read_text(encoding="utf-8"), original_content)
+        except (OSError, NotImplementedError):
+            pass
 
     def test_cli_error_exit_codes(self) -> None:
         stderr_buf = io.StringIO()
