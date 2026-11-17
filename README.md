@@ -39,7 +39,8 @@ print(records[0].experiment_id, records[0].metrics)
 
 ## 文档
 
+- [核心数据层设计与 B、C 接口约定](docs/CORE_DESIGN.md)包含统一模型、连接器契约、异常体系和导入规则，与 A、C 分支的公共约定保持一致。
 - [JSON 插件使用说明](plugins/json_connector/README.md)包含格式映射、异常约定、构建与卸载步骤。
 - [JSON 连接器设计与联调说明](docs/JSON_CONNECTOR.md)包含公共接口、模块职责、测试覆盖和 A、C 对接方式。
 
-A 分支提供 `docs/CORE_DESIGN.md`，说明核心模型、连接器契约和导入规则。C 分支继承该文档，并新增 `docs/ANALYSIS_AND_CLI.md`，说明分析接口、报告格式和 CLI 参数。这两份文档随对应模块交付。
+C 分支另有 `docs/ANALYSIS_AND_CLI.md`，说明分析接口、报告格式和 CLI 参数，随分析模块交付。
