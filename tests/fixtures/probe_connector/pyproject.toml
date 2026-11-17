@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "experimentlens-probe-connector"
+version = "0.1.0"
+requires-python = ">=3.10"
+
+[project.entry-points."experimentlens.connectors"]
+probe = "probe_connector:ProbeConnector"
+
+[tool.setuptools.packages.find]
+where = ["src"]
