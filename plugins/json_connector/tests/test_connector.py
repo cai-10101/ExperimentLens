@@ -108,6 +108,30 @@ class JsonConnectorTests(unittest.TestCase):
         self.assertEqual(record.experiment_id, "exp_003")
         self.assertEqual(record.metrics, {"loss": -1.0, "f1": 0.0})
 
+    def test_nested_metric_names_normalized_before_alias_mapping(self):
+        data = dict(self.nested, results={" f1_score ": 0.8, " recall ": 0.7})
+        self.assertEqual(self.load(data)[0].metrics, {"f1": 0.8, "recall": 0.7})
+
+    def test_nested_normalized_metric_collisions_rejected(self):
+        for names in (("f1_score", " f1_score "), ("f1", " f1_score "),
+                      (" f1 ", "f1_score"), (" recall", "recall ")):
+            for ordered_names in (names, tuple(reversed(names))):
+                with self.subTest(names=ordered_names):
+                    metrics = dict(zip(ordered_names, (0.8, 0.9)))
+                    with self.assertRaisesRegex(DataValidationError, "duplicate metric") as caught:
+                        self.load(dict(self.nested, results=metrics))
+                    self.assertIn(str(self.path), str(caught.exception))
+                    self.assertIn("record 1", str(caught.exception))
+
+    def test_nested_alias_consistent_across_files(self):
+        self.load(dict(self.nested, results={"f1_score": 0.8}))
+        other = self.path.with_name("other.json")
+        other.write_text(json.dumps(dict(
+            self.nested, run_id="exp_004", results={" f1_score ": 0.9},
+        )), encoding="utf-8")
+        records = load_experiments([str(self.path), str(other)])
+        self.assertEqual([record.metrics for record in records], [{"f1": 0.8}, {"f1": 0.9}])
+
     def test_invalid_top_level_and_empty_records(self):
         for data in ([], {}, None, 1, "record", [None], {"experiments": []},
                      {"experiments": {}}, {"experiments": [self.nested], "extra": 1}):

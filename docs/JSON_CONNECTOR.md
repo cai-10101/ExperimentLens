@@ -44,7 +44,7 @@ json = "experimentlens_json:JsonConnector"
 
 统一记录直接提供 `experiment_id`、`model`、`dataset`、`task`、`split`、`metrics` 和可选 `config`。出现 `run_id`、`model_info` 或 `results` 任一字段时进入嵌套映射，混入 `experiment_id`、`model` 或 `metrics` 会报错。`f1_score` 与 `f1` 同时出现会报错。
 
-必填标识为非空字符串，指标至少一个且值为有限数值，`config` 必须为对象。公共模型执行首尾空白归一化、指标名冲突检查与浮点数转换。记录中的额外字段忽略，`results` 内所有键均按指标处理。指标范围、语义和优化方向由下游约定。
+必填标识为非空字符串，指标至少一个且值为有限数值，`config` 必须为对象。嵌套记录的 `results` 指标名先去除首尾空白，再将 `f1_score` 映射为 `f1`，映射后重名抛出 `DataValidationError`。因此 `" f1_score "` 同样映射为 `f1`，与 `f1_score` 或 `f1` 同时出现均报错。公共模型继续执行标识及指标合法性检查与浮点数转换。记录中的额外字段忽略，`results` 内所有键均按指标处理。指标范围、语义和优化方向由下游约定。
 
 ## 错误与失败边界
 
@@ -56,7 +56,7 @@ json = "experimentlens_json:JsonConnector"
 
 ## 测试与验收方式
 
-`tests/test_connector.py` 当前包含 23 个测试方法，覆盖字段映射、三种顶层结构、顺序、缺失字段、非法指标、映射冲突、编码、重复键、解析限制、错误定位、入口点发现、混合目录、禁用后 CSV 导入及重复 ID 检查。
+`tests/test_connector.py` 当前包含 26 个测试方法，覆盖字段映射、三种顶层结构、顺序、缺失字段、非法指标、映射冲突、编码、重复键、解析限制、错误定位、入口点发现、混合目录、禁用后 CSV 导入及重复 ID 检查。新增回归测试验证带空白别名的映射、两步归一化后的重名拒绝（含键顺序反转），以及跨文件指标名一致性。
 
 `tests/installation_smoke.py` 在 `absent` 与 `installed` 两种模式下检查实际包元数据发现和 CSV 导入，安装模式额外验证 JSON 示例。CI 在 Python 3.10 / 3.12 上构建核心及插件分发包，依次执行插件安装前检查、wheel 安装后的契约测试及禁用场景、卸载后检查和依赖检查。权限异常测试使用模拟。
 

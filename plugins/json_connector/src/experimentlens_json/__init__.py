@@ -31,14 +31,19 @@ def _record(item: object, source: str) -> ExperimentRecord:
         model_info = item.get("model_info")
         if not isinstance(model_info, dict):
             raise DataValidationError("model_info must be an object with a name")
-        metrics = item.get("results")
-        if not isinstance(metrics, dict):
+        results = item.get("results")
+        if not isinstance(results, dict):
             raise DataValidationError("results must be a non-empty object")
-        metrics = dict(metrics)
-        if "f1_score" in metrics:
-            if "f1" in metrics:
-                raise DataValidationError("results contains both f1 and f1_score")
-            metrics["f1"] = metrics.pop("f1_score")
+        metrics = {}
+        for name, value in results.items():
+            normalized_name = name.strip()
+            if normalized_name == "f1_score":
+                normalized_name = "f1"
+            if normalized_name in metrics:
+                raise DataValidationError(
+                    f"duplicate metric after whitespace normalization and alias mapping: {normalized_name!r}"
+                )
+            metrics[normalized_name] = value
         experiment_id = item.get("run_id")
         model = model_info.get("name")
     else:
