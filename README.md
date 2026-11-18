@@ -33,5 +33,44 @@ experimentlens examples/experiments/exp_001/metrics.csv examples/experiments/exp
 
 `load_experiments(["文件.csv", "目录"])` 会按输入顺序导入，目录递归扫描并按路径排序。目录中的无关文件被忽略；CSV 或 JSON 缺少可用连接器时会报错，避免悄悄漏掉实验。显式指定未知格式也会报错。任一受支持文件无效时，调用整体失败，不返回部分结果。
 
-- 核心连接器协议、异常和插件安装方式详见 [核心设计说明](docs/CORE_DESIGN.md)。
-- 指标分析、可比性规则、报告导出与 CLI 参数详见 [分析与 CLI 说明](docs/ANALYSIS_AND_CLI.md)。
+## JSON 连接器（成员 B）
+
+项目提供 `experimentlens-json` 独立插件包，支持嵌套 JSON 与统一记录 JSON，转换为核心公共类型 `ExperimentRecord`，并通过 `experimentlens.connectors` 包入口点自动注册。
+
+| 路径 | 内容 |
+| --- | --- |
+| `plugins/json_connector/src/experimentlens_json/` | JSON 解析、字段映射和错误定位 |
+| `plugins/json_connector/examples/` | 嵌套记录与统一记录示例 |
+| `plugins/json_connector/tests/` | 公共契约测试与安装、卸载验证 |
+| `.github/workflows/json-connector.yml` | Python 3.10 / 3.12 构建及插件集成验证 |
+
+### 插件安装与验证
+
+在仓库根目录执行以下 PowerShell 命令，创建独立环境并安装当前 checkout 的核心包和 JSON 插件。
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -e .
+python -m pip install -e plugins/json_connector
+python -m unittest discover -s plugins/json_connector/tests -v
+python plugins/json_connector/tests/installation_smoke.py installed
+python -m pip check
+```
+
+插件 CI 仍固定 A 的公共接口基线进行复现。wheel 构建、安装及卸载验证流程见插件使用说明。核心测试包含插件缺失场景，应在安装 JSON 插件前运行核心测试，或使用独立虚拟环境。
+
+```python
+from experimentlens import load_experiments
+
+records = load_experiments(["plugins/json_connector/examples/nested.json"])
+print(records[0].experiment_id, records[0].metrics)
+# exp_003 {'precision': 0.9, 'recall': 0.82, 'f1': 0.86}
+```
+
+## 文档
+
+- [核心设计说明](docs/CORE_DESIGN.md)包含统一模型、连接器契约、异常体系和导入规则。
+- [分析与 CLI 说明](docs/ANALYSIS_AND_CLI.md)包含可比性规则、指标分析、报告导出和 CLI 参数。
+- [JSON 插件使用说明](plugins/json_connector/README.md)包含格式映射、异常约定、构建与卸载步骤。
+- [JSON 连接器设计与联调说明](docs/JSON_CONNECTOR.md)包含公共接口、模块职责、测试覆盖和 A、C 对接方式。

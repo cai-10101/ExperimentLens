@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "experimentlens-json"
+version = "0.1.0"
+description = "Independent JSON experiment connector for ExperimentLens"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["experimentlens>=0.1,<0.2"]
+
+[project.entry-points."experimentlens.connectors"]
+json = "experimentlens_json:JsonConnector"
+
+[tool.setuptools.packages.find]
+where = ["src"]
