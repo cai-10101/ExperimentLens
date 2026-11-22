@@ -27,6 +27,6 @@ json = "b_package.connector:JsonConnector"
 
 公共异常根类是 `ExperimentLensError`。`InputError` 表示路径或文件读取失败；`DataValidationError` 表示内容无效；`ConnectorNotFoundError` 表示文件格式没有可用连接器；`ConnectorRegistrationError` 表示插件契约或发现失败；`ConnectorExecutionError` 表示插件运行异常。调用方可以捕获根类给用户友好反馈，也可以按子类区分处理。任何文件失败都会中止整次导入，避免得到不完整结果。
 
-## 待联调确认
+## 联调结论与接口演化
 
-B 应按本契约提交独立 JSON 包及其测试；C 已确认当前字段满足可比性检查与报告导出，指标优化方向由 C 的分析器处理。若后续需要扩展字段，应先共同修订公共契约，再开展联调。最终 JSON 安装、报告闭环与交叉 Review 需要三人协作验收。
+独立 JSON 包已按本契约接入，C 的分析器直接消费 CSV 与 JSON 产生的统一记录。当前主线已验证插件安装、禁用、混合输入按 `f1` 严格比较，以及 Markdown、CSV、HTML 报告导出。若后续需要扩展字段，应先共同修订公共契约，再更新连接器、分析模块和契约测试。

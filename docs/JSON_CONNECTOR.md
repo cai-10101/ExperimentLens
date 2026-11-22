@@ -62,8 +62,6 @@ json = "experimentlens_json:JsonConnector"
 
 上述内容描述测试覆盖和验收流程。每次变更的实际通过情况以当次运行输出和 GitHub Actions 记录为准。
 
-## A、C 联调基线
+## A、C 联调与当前主线验证
 
-当前插件 CI 固定使用 A 的 `4b7b5b8c25e7f1faab30b0d10c9e7f4b6c4f7a35` 提交，以复现公共接口。此次文档核对时，本地 `origin/main` 指向合并 A 的 PR #1 的提交 `b5e1cef`。本分支的[核心设计文档](CORE_DESIGN.md)同步自 A，C 分支继承相同版本。
-
-C 的 `docs/ANALYSIS_AND_CLI.md` 约定了 `analyze_experiments`、报告导出和 CLI。整合核心、JSON 插件与 C 模块后，应使用混合 CSV / JSON 输入验证导入、可比性判断、指标排序及报告生成，并核对禁用 JSON 的行为。B 的插件测试覆盖至统一记录导入，C 的分析与报告闭环需要整合环境验收。
+插件 CI 从当前 checkout 分别构建核心与独立 JSON 包，先验证未安装插件时的 CSV 基础能力，再安装 JSON wheel 运行契约测试与混合 CSV / JSON 报告闭环，最后卸载插件并再次验证 CSV。这样每次主线或 PR 修改都会与对应版本的公共接口联调。C 的 `docs/ANALYSIS_AND_CLI.md` 说明 `analyze_experiments`、报告导出和 CLI 的行为。

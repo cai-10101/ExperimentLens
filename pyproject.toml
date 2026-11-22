@@ -7,6 +7,7 @@ name = "experimentlens"
 version = "0.1.0"
 description = "Core experiment records, CSV import, connector discovery, analysis, and reporting"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.10"
 
 [project.scripts]
