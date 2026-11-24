@@ -86,7 +86,7 @@ python -m pip check
 | 成员账号 | 本人实质改动 | 审查他人的改动及结果 | 关键建议、采用情况与本人验证 |
 | --- | --- | --- | --- |
 | A：`muer298` | [PR #1](https://github.com/cai-10101/ExperimentLens/pull/1)：统一模型、CSV、插件注册与导入测试 | [PR #3](https://github.com/cai-10101/ExperimentLens/pull/3)：提出 JSON 别名边界并复核修复 | Codex 辅助发现先映射后去空白造成 `f1` 不一致；采用该测试输入，在修订前复现失败、修订后验证映射、冲突报错与混合报告。 |
-| B：`Megabytes-MB` | [PR #3](https://github.com/cai-10101/ExperimentLens/pull/3)：独立 JSON 包与契约测试 | [PR #2](https://github.com/cai-10101/ExperimentLens/pull/2)：提出输出保护与精度问题，复核新提交后在评论中批准 | 待 B 本人补充或确认未使用。 |
+| B：`Megabytes-MB` | [PR #3](https://github.com/cai-10101/ExperimentLens/pull/3)：独立 JSON 包与契约测试 | [PR #2](https://github.com/cai-10101/ExperimentLens/pull/2)：提出输出保护与精度问题，复核新提交后在评论中批准 | 使用 Codex 辅助实现 JSON 插件、编写契约测试，并复现 C 模块的输出覆盖、CSV 精度丢失及极小差值误判问题；本人核对审查意见与修订结果，在 PR #2 留下具体意见及最终复核结论。采纳 A 在 PR #3 提出的别名归一化意见，将处理顺序修正为先去空白、再映射 `f1_score → f1`、最后检查重名，提交 `8d6a43c` 并回复处理依据；新增 3 项回归测试，修复前失败、修复后通过。Codex 辅助执行的主线 26 项测试、插件 26 项测试、wheel 安装、入口点发现及跨文件严格比较通过，Python 3.10 / 3.12 CI 通过，修订经 A 复核批准。 |
 | C：蔡昕升 / 2024312111466（`cai-10101`） | [PR #2](https://github.com/cai-10101/ExperimentLens/pull/2)：分析、报告、CLI 与测试 | [PR #1](https://github.com/cai-10101/ExperimentLens/pull/1)：提出核心异常与接口意见，复核后批准 | AI 辅助编写分析与导出初版时建议对 `spread` 做 10 位四舍五入并对 CSV 指标格式化截断；结合 PR #2 审查复现了极小非零差值误判“无差异”与精度丢失问题，拒绝该舍入方案，改为精确差值与完整浮点导出，并通过 `test_tiny_non_zero_spread_not_misjudged_as_no_difference` 和 `test_csv_export_preserves_high_precision` 验证往返精度与结论一致。 |
 
 ## 许可与已知限制
