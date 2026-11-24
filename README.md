@@ -87,7 +87,7 @@ python -m pip check
 | --- | --- | --- | --- |
 | A：`muer298` | [PR #1](https://github.com/cai-10101/ExperimentLens/pull/1)：统一模型、CSV、插件注册与导入测试 | [PR #3](https://github.com/cai-10101/ExperimentLens/pull/3)：提出 JSON 别名边界并复核修复 | Codex 辅助发现先映射后去空白造成 `f1` 不一致；采用该测试输入，在修订前复现失败、修订后验证映射、冲突报错与混合报告。 |
 | B：`Megabytes-MB` | [PR #3](https://github.com/cai-10101/ExperimentLens/pull/3)：独立 JSON 包与契约测试 | [PR #2](https://github.com/cai-10101/ExperimentLens/pull/2)：提出输出保护与精度问题，复核新提交后在评论中批准 | 待 B 本人补充或确认未使用。 |
-| C：`cai-10101` | [PR #2](https://github.com/cai-10101/ExperimentLens/pull/2)：分析、报告、CLI 与测试 | [PR #1](https://github.com/cai-10101/ExperimentLens/pull/1)：提出核心异常与接口意见，复核后批准 | 待 C 本人补充或确认未使用。 |
+| C：蔡昕升 / 2024312111466（`cai-10101`） | [PR #2](https://github.com/cai-10101/ExperimentLens/pull/2)：分析、报告、CLI 与测试 | [PR #1](https://github.com/cai-10101/ExperimentLens/pull/1)：提出核心异常与接口意见，复核后批准 | AI 辅助编写分析与导出初版时建议对 `spread` 做 10 位四舍五入并对 CSV 指标格式化截断；结合 PR #2 审查复现了极小非零差值误判“无差异”与精度丢失问题，拒绝该舍入方案，改为精确差值与完整浮点导出，并通过 `test_tiny_non_zero_spread_not_misjudged_as_no_difference` 和 `test_csv_export_preserves_high_precision` 验证往返精度与结论一致。 |
 
 ## 许可与已知限制
 
